@@ -177,12 +177,16 @@
           <div class="grid2" id="micStyles"></div>
           <label class="slider"><span>Sensitivity <b id="stripSensVal">50</b></span>
             <input type="range" id="stripSens" min="0" max="100" value="50"></label>
+          <label class="slider"><span>Command format <span>try another if nothing happens</span></span>
+            <select id="micFmt"><option value="a">Format A</option><option value="b">Format B</option><option value="c">Format C</option><option value="d">Format D</option></select></label>
           <button class="primary" id="stripMicBtn" style="width:100%">Start music mode</button>
           <p class="note">Uses the microphone built into the strip's controller box, so the lights react to sound in the room even with this app closed.</p>
         </div>
       </div>
       <div class="card" id="phoneMicPane" hidden>
         <h2>This device's mic <span class="r pill" id="micState"></span></h2>
+        <label class="slider" style="margin-bottom:12px"><span>Microphone</span>
+          <select id="micDev"><option value="">Default microphone</option></select></label>
         <div id="meter"></div>
         <div class="seg" id="musicMode" style="margin-top:14px">
           <button class="active" data-m="pulse">Pulse</button><button data-m="rainbow">Rainbow</button><button data-m="flash">Flash</button>
@@ -569,8 +573,11 @@ async function startMic() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $("micState").textContent = "microphone not available"; return; }
   stopAll();
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
+  const devId = $("micDev").value;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: devId ? { exact: devId } : undefined,
+    echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
   catch { $("micState").textContent = "microphone blocked"; return; }
+  listMics();
   const ac = new (window.AudioContext || window.webkitAudioContext)();
   const an = ac.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = 0.5;
   ac.createMediaStreamSource(stream).connect(an);
@@ -609,6 +616,18 @@ function stopMic() {
   $("micBtn").textContent = "Start listening"; $("micState").textContent = "";
   showColor(rgb);
 }
+// Fill the microphone picker (names appear after the browser has been given mic permission once).
+async function listMics() {
+  try {
+    const sel = $("micDev"), cur = sel.value || store.get("micDev", "");
+    const mics = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput" && d.deviceId && d.deviceId !== "default");
+    sel.innerHTML = '<option value="">Default microphone</option>' +
+      mics.map((d, i) => `<option value="${d.deviceId}">${(d.label || "Microphone " + (i + 1)).replace(/</g, "&lt;")}</option>`).join("");
+    if (mics.some(d => d.deviceId === cur)) sel.value = cur;
+  } catch {}
+}
+if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) { listMics(); navigator.mediaDevices.addEventListener?.("devicechange", listMics); }
+$("micDev").onchange = e => { store.set("micDev", e.target.value); if (stopRunner && stopRunner.name === "music") { stopAll(); startMic(); } };
 $("micBtn").onclick = () => (stopRunner && stopRunner.name === "music") ? stopAll() : startMic();
 
 // Strip's own microphone
@@ -619,16 +638,26 @@ for (const [name, code] of MIC_STYLES) {
   b.onclick = () => {
     micStyle = code; store.set("micStyle", code);
     document.querySelectorAll("#micStyles button").forEach(x => x.classList.toggle("active", x === b));
-    if (stripMicOn) send(LED.micEffect(code));
+    if (stripMicOn) micFrames(code).forEach(f => send(f));
   };
   $("micStyles").appendChild(b);
 }
 $("stripSens").value = store.get("stripSens", 50); $("stripSensVal").textContent = $("stripSens").value;
 $("stripSens").oninput = e => { const v = +e.target.value; $("stripSensVal").textContent = v; store.set("stripSens", v);
   if (stripMicOn) send(LED.micSens(v), "micSens"); };
+// Controllers differ, so offer several known command formats for the built-in mic.
+const MIC_FORMATS = {
+  a: code => [LED.micOn(), LED.micEffect(code)],
+  b: code => [LED.micOn(), [0x7e,0x00,0x03,code,0x04,0x00,0x00,0x00,0xef]],
+  c: code => [[0x7e,0x00,0x03,code,0x04,0x00,0x00,0x00,0xef], LED.micOn(), [0x7e,0x04,0x07,0x01,0x00,0x00,0x00,0x00,0xef]],
+  d: code => [[0x7e,0x04,0x07,0x01,0x00,0x00,0x00,0x00,0xef], [0x7e,0x05,0x03,code,0x04,0x00,0x00,0x00,0xef]],
+};
+function micFrames(code) { return (MIC_FORMATS[$("micFmt").value] || MIC_FORMATS.a)(code); }
+$("micFmt").value = store.get("micFmt", "a");
+$("micFmt").onchange = e => { store.set("micFmt", e.target.value); if (stripMicOn) micFrames(micStyle).forEach(f => send(f)); };
 function startStripMic() {
   stopAll();
-  send(LED.micOn()); send(LED.micEffect(micStyle)); send(LED.micSens(+$("stripSens").value));
+  micFrames(micStyle).forEach(f => send(f)); send(LED.micSens(+$("stripSens").value));
   stripMicOn = true;
   $("preview").textContent = "Music mode";
   stopRunner = { name: "stripMic", stop() { stripMicOn = false; send(LED.micOff()); send(LED.color(...rgb)); onStop("stripMic"); } };
