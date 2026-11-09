@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1115">
+<title>Strip Control</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --line: #262a33; --text: #eef0f4; --muted: #8a90a0;
+    --accent: #5ad1e6; --danger: #ff5c7a; --cur: #ff3366; --chip: #222632;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); }
+  body { margin: 0; color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: max(14px, env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom)); }
+  main { max-width: 480px; margin: 0 auto; display: grid; gap: 14px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 22px; margin: 0; }
+  .status { font-size: 13px; color: var(--muted); }
+  .status b { color: var(--text); font-weight: 600; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .card h2 .r { float: right; text-transform: none; letter-spacing: 0; }
+  button { font: inherit; color: var(--text); background: var(--chip); border: 1px solid var(--line);
+    border-radius: 12px; padding: 11px 13px; cursor: pointer; }
+  button:active { transform: scale(.97); }
+  button.primary { background: var(--accent); color: #062026; border: 0; font-weight: 600; }
+  button.active { border-color: var(--accent); color: var(--accent); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .grow { flex: 1; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .grid2 button, .grid3 button { font-size: 14px; text-align: left; padding: 10px 12px; }
+  #power { width: 60px; height: 60px; border-radius: 50%; font-size: 24px; padding: 0; flex: none; }
+  #power.on { background: var(--cur); border-color: transparent; box-shadow: 0 0 24px var(--cur); }
+  .preview { height: 60px; border-radius: 14px; background: var(--cur); transition: background .12s, opacity .15s;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; color: rgba(0,0,0,.6); font-weight: 600; }
+  #wheel { width: 100%; max-width: 270px; aspect-ratio: 1; display: block; margin: 0 auto; touch-action: none; border-radius: 50%; }
+  .dots { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .dots button { aspect-ratio: 1; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.14); }
+  .dots button.add { background: transparent; border-style: dashed; color: var(--muted); font-size: 20px; }
+  label.slider { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+  label.slider span { display: flex; justify-content: space-between; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 28px; }
+  #cct { accent-color: #fff; background: linear-gradient(90deg, #ffb46b, #fff, #cfe3ff); border-radius: 8px; height: 10px; -webkit-appearance: none; appearance: none; }
+  #cct::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid #333; }
+  .disabled { opacity: .45; pointer-events: none; }
+  .note { font-size: 13px; color: var(--muted); margin: 0; }
+  .note code { background: var(--chip); padding: 1px 5px; border-radius: 5px; }
+  #log { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); white-space: pre-wrap; max-height: 120px; overflow: auto; margin: 8px 0 0; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+  #unsupported { display: none; border-color: var(--danger); }
+  .tab { display: none; gap: 14px; }
+  .tab.show { display: grid; }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(15,17,21,.94); backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line); display: flex; justify-content: center; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); z-index: 5; }
+  nav div { display: flex; width: 100%; max-width: 480px; }
+  nav button { flex: 1; background: none; border: 0; border-radius: 10px; padding: 6px 2px; font-size: 11px; color: var(--muted);
+    display: grid; justify-items: center; gap: 2px; }
+  nav button svg { width: 22px; height: 22px; }
+  nav button.on { color: var(--accent); }
+  .scene { display: grid; gap: 6px; padding: 0; overflow: hidden; text-align: left; }
+  .scene i { display: block; height: 44px; }
+  .scene span { padding: 0 10px 9px; font-size: 14px; }
+  #meter { height: 70px; border-radius: 12px; background: #0b0d11; overflow: hidden; display: flex; align-items: flex-end; gap: 2px; padding: 4px; }
+  #meter b { flex: 1; background: var(--cur); border-radius: 2px; min-height: 2px; transition: height .05s; }
+  .seg { display: flex; background: var(--chip); border-radius: 12px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; border: 0; padding: 8px 6px; font-size: 14px; background: none; }
+  .seg button.active { background: var(--card); color: var(--accent); }
+  .diy { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .diy .c { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,.14); position: relative; }
+  .diy .c input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .diy .x { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; padding: 0; border-radius: 50%; font-size: 11px; line-height: 1; z-index: 2; }
+  .timerow { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
+  .timerow:first-of-type { border-top: 0; }
+  input[type=time], select { font: inherit; color: var(--text); background: var(--chip); border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; }
+  .switch { position: relative; width: 48px; height: 28px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; background: #333846; border-radius: 28px; transition: .2s; }
+  .switch span::before { content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::before { transform: translateX(20px); }
+  .pill { font-size: 12px; color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Strip Control</h1>
+      <div class="status" id="status">Not connected</div>
+    </div>
+    <button class="primary" id="connect">Connect</button>
+  </header>
+
+  <div class="card" id="unsupported">
+    <h2>Bluetooth not available in this browser</h2>
+    <p class="note">On iPhone, Safari and Chrome can't talk to Bluetooth devices from a web page. Copy this page's link and open it in the free <b>Bluefy</b> browser from the App Store. On Android or a computer, use Chrome or Edge.</p>
+  </div>
+
+  <details class="card" id="help">
+    <summary>Can't find your strip?</summary>
+    <ol class="note" style="padding-left:18px;margin:10px 0 0;display:grid;gap:6px">
+      <li>It will <b>never</b> show in iPhone Settings › Bluetooth. That's normal for LED controllers. Connect from this page.</li>
+      <li>Force-quit LotusLanternX (swipe it away). The strip accepts only one phone at a time.</li>
+      <li>Unplug the strip's power for 5 seconds, plug it back in, then tap Connect.</li>
+      <li>Still nothing? <a href="#" id="showAll" style="color:var(--accent)">Show all nearby devices</a> and pick the one named ELK-BLEDOM, LEDBLE or similar.</li>
+    </ol>
+  </details>
+
+  <div class="card">
+    <div class="row">
+      <button id="power" aria-label="Power">⏻</button>
+      <div class="preview grow" id="preview"></div>
+    </div>
+    <label class="slider" style="margin-top:12px"><span>Brightness <b id="briVal">100%</b></span>
+      <input type="range" id="bri" min="0" max="100" value="100"></label>
+  </div>
+
+  <div id="controls" class="disabled" style="display:grid;gap:14px">
+
+    <!-- COLOR -->
+    <section class="tab show" data-tab="color">
+      <div class="card">
+        <div class="seg" id="colorMode">
+          <button class="active" data-m="rgb">Color</button><button data-m="white">White</button>
+        </div>
+        <div id="rgbPane" style="margin-top:14px">
+          <canvas id="wheel" width="540" height="540"></canvas>
+          <div class="dots" id="swatches" style="margin-top:14px"></div>
+        </div>
+        <div id="whitePane" style="display:none;margin-top:16px">
+          <label class="slider"><span>Warm <b id="cctVal">4500K</b> Cool</span>
+            <input type="range" id="cct" min="2700" max="6500" step="100" value="4500"></label>
+          <div class="grid3" style="margin-top:14px" id="whites"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>My colors <span class="r note">tap + to save the current color</span></h2>
+        <div class="dots" id="favs"></div>
+      </div>
+    </section>
+
+    <!-- MODES -->
+    <section class="tab" data-tab="modes">
+      <div class="card">
+        <h2>Built-in modes</h2>
+        <div class="grid2" id="effects"></div>
+        <label class="slider" style="margin-top:14px"><span>Speed <b id="spdVal">50</b></span>
+          <input type="range" id="spd" min="0" max="100" value="50"></label>
+      </div>
+      <div class="card">
+        <h2>Custom mode <span class="r pill" id="diyState"></span></h2>
+        <div class="diy" id="diyColors"></div>
+        <div class="seg" id="diyType" style="margin-top:14px">
+          <button class="active" data-t="fade">Fade</button><button data-t="jump">Jump</button><button data-t="strobe">Strobe</button>
+        </div>
+        <label class="slider" style="margin-top:12px"><span>Speed <b id="diySpdVal">50</b></span>
+          <input type="range" id="diySpd" min="1" max="100" value="50"></label>
+        <button class="primary" id="diyRun" style="width:100%;margin-top:10px">Start custom mode</button>
+        <p class="note" style="margin-top:8px">Runs from your phone, so keep this page open.</p>
+      </div>
+    </section>
+
+    <!-- MUSIC -->
+    <section class="tab" data-tab="music">
+      <div class="card">
+        <h2>Music <span class="r pill" id="micState"></span></h2>
+        <div id="meter"></div>
+        <div class="seg" id="musicMode" style="margin-top:14px">
+          <button class="active" data-m="pulse">Pulse</button><button data-m="rainbow">Rainbow</button><button data-m="flash">Flash</button>
+        </div>
+        <label class="slider" style="margin-top:12px"><span>Sensitivity <b id="sensVal">60</b></span>
+          <input type="range" id="sens" min="1" max="100" value="60"></label>
+        <button class="primary" id="micBtn" style="width:100%;margin-top:10px">Start listening</button>
+        <p class="note" style="margin-top:8px">Uses your phone's microphone. Pulse uses the color you picked on the Color tab.</p>
+      </div>
+    </section>
+
+    <!-- SCENES -->
+    <section class="tab" data-tab="scenes">
+      <div class="card">
+        <h2>Scenes</h2>
+        <div class="grid2" id="scenes"></div>
+      </div>
+    </section>
+
+    <!-- TIMER -->
+    <section class="tab" data-tab="timer">
+      <div class="card">
+        <h2>Sleep timer <span class="r pill" id="sleepLeft"></span></h2>
+        <div class="grid3" id="sleepBtns"></div>
+      </div>
+      <div class="card">
+        <h2>Schedule</h2>
+        <div class="timerow"><span>Turn on at</span><div class="row"><input type="time" id="onTime" value="18:30"><label class="switch"><input type="checkbox" id="onEn"><span></span></label></div></div>
+        <div class="timerow"><span>Turn off at</span><div class="row"><input type="time" id="offTime" value="23:30"><label class="switch"><input type="checkbox" id="offEn"><span></span></label></div></div>
+        <p class="note" style="margin-top:8px">The controller has no clock of its own, so timers run from your phone while this page stays open.</p>
+      </div>
+    </section>
+  </div>
+
+  <details class="card">
+    <summary>Advanced</summary>
+    <p class="note" style="margin-top:8px">Commands go to service <code>FFF0</code>, characteristic <code>FFF3</code> (with <code>FFE0/FFE1</code> as a fallback).</p>
+    <label class="note" style="display:block;margin-top:8px"><input type="checkbox" id="altPower"> Use alternate power command (try this if the power button does nothing)</label>
+    <pre id="log"></pre>
+  </details>
+</main>
+
+<nav><div id="tabs">
+  <button class="on" data-tab="color"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.5" fill="currentColor"/><circle cx="12" cy="7" r="1.5" fill="currentColor"/><circle cx="16" cy="10" r="1.5" fill="currentColor"/><path d="M12 21a3 3 0 0 1 0-6h2"/></svg>Color</button>
+  <button data-tab="modes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2 5 5 .5-4 3.5 1.5 5L12 14l-4.5 3 1.5-5-4-3.5L10 8z"/></svg>Modes</button>
+  <button data-tab="music"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>Music</button>
+  <button data-tab="scenes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Scenes</button>
+  <button data-tab="timer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>Timer</button>
+</div></nav>
+
+<script>
+// ===== Protocol (ELK-BLEDOM / LEDBLE / LotusLanternX family): 9-byte frames 7E .. EF =====
+const LED = {
+  powerOn:  alt => alt ? [0x7e,0x04,0x04,0x01,0x00,0x00,0x00,0x00,0xef] : [0x7e,0x00,0x04,0xf0,0x00,0x01,0xff,0x00,0xef],
+  powerOff: alt => alt ? [0x7e,0x04,0x04,0x00,0x00,0x00,0x00,0x00,0xef] : [0x7e,0x00,0x04,0x00,0x00,0x00,0xff,0x00,0xef],
+  color: (r,g,b) => [0x7e,0x00,0x05,0x03,r,g,b,0x00,0xef],
+  brightness: v => [0x7e,0x00,0x01,v,0x00,0x00,0x00,0x00,0xef],
+  effect: code => [0x7e,0x00,0x03,code,0x03,0x00,0x00,0x00,0xef],
+  speed: v => [0x7e,0x00,0x02,v,0x00,0x00,0x00,0x00,0xef],
+};
+const EFFECTS = [
+  ["Jump RGB",0x87],["Jump 7 colors",0x88],["Fade RGB",0x89],["Fade 7 colors",0x8a],
+  ["Breathe red",0x8b],["Breathe green",0x8c],["Breathe blue",0x8d],["Breathe yellow",0x8e],
+  ["Breathe cyan",0x8f],["Breathe purple",0x90],["Breathe white",0x91],["Fade red/green",0x92],
+  ["Fade red/blue",0x93],["Fade green/blue",0x94],["Strobe 7 colors",0x95],["Strobe red",0x96],
+  ["Strobe green",0x97],["Strobe blue",0x98],["Strobe yellow",0x99],["Strobe cyan",0x9a],
+  ["Strobe purple",0x9b],["Strobe white",0x9c],
+];
+const SWATCHES = ["#ff0000","#ff7a00","#ffd400","#00ff00","#00ffd5","#0050ff","#a000ff","#ff2a8a"];
+// Scenes: either a static color + brightness, a built-in effect, or a software color loop.
+const SCENES = [
+  { name: "Reading",  color: "#fff1d6", bri: 100 },
+  { name: "Movie",    color: "#1a2cff", bri: 25 },
+  { name: "Relax",    color: "#ff8a3d", bri: 45 },
+  { name: "Romance",  color: "#ff1f4f", bri: 40 },
+  { name: "Night light", color: "#ff5a00", bri: 8 },
+  { name: "Focus",    color: "#e8f1ff", bri: 100 },
+  { name: "Sunset",   loop: ["#ff4e00","#ff8a00","#ff2e63","#8a2be2"], type: "fade", spd: 25 },
+  { name: "Ocean",    loop: ["#0040ff","#00c8ff","#00ffb4","#0070ff"], type: "fade", spd: 30 },
+  { name: "Forest",   loop: ["#0a7a1f","#4caf50","#a4d000","#0f5f3a"], type: "fade", spd: 20 },
+  { name: "Fireplace",loop: ["#ff3c00","#ff7a00","#ff2000","#ffa000"], type: "fade", spd: 85 },
+  { name: "Party",    effect: 0x88, spd: 80 },
+  { name: "Rainbow",  effect: 0x8a, spd: 50 },
+];
+const TARGETS = [{ service: 0xfff0, char: 0xfff3 }, { service: 0xffe0, char: 0xffe1 }];
+
+// ===== Helpers & state =====
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("strip:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("strip:" + k, JSON.stringify(v)); } catch {} },
+};
+const hexToRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const rgbToHex = c => "#" + c.map(x => x.toString(16).padStart(2, "0")).join("");
+const lerp = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
+let device = null, charac = null, on = true;
+let rgb = store.get("rgb", [255, 51, 102]);
+let queue = Promise.resolve(), pending = new Map(), sending = false;
+
+function log(msg) { const el = $("log"); el.textContent = (msg + "\n" + el.textContent).slice(0, 4000); }
+const hex = b => b.map(x => x.toString(16).padStart(2, "0")).join(" ");
+function setStatus(html) { $("status").innerHTML = html; }
+
+// Writes are serialized; for fast drags/animations only the latest frame per control is kept.
+function send(bytes, key) {
+  if (!charac) { log("(not connected) " + hex(bytes)); return; }
+  if (key) { pending.set(key, bytes); if (!sending) flush(); return; }
+  queue = queue.then(() => write(bytes));
+}
+async function flush() {
+  sending = true;
+  while (pending.size) {
+    const [k, b] = pending.entries().next().value; pending.delete(k);
+    await (queue = queue.then(() => write(b)));
+  }
+  sending = false;
+}
+async function write(bytes) {
+  try {
+    const d = new Uint8Array(bytes);
+    if (charac.writeValueWithoutResponse) await charac.writeValueWithoutResponse(d); else await charac.writeValue(d);
+    log("→ " + hex(bytes));
+  } catch (e) { log("write failed: " + e.message); }
+}
+
+// Show a color in the UI (and optionally send it).
+function showColor(c) {
+  document.documentElement.style.setProperty("--cur", `rgb(${c[0]},${c[1]},${c[2]})`);
+}
+function sendColor(c) { showColor(c); send(LED.color(...c), "color"); }
+
+// One software "runner" at a time (custom mode, music, scene loops).
+let stopRunner = null;
+function stopAll(except) {
+  if (stopRunner && stopRunner.name !== except) { const s = stopRunner; stopRunner = null; s.stop(); }
+  document.querySelectorAll("#effects button, #scenes button").forEach(b => b.classList.remove("active"));
+}
+
+// ===== Bluetooth =====
+async function connect(showAll = false) {
+  if (!navigator.bluetooth) { $("unsupported").style.display = "block"; $("unsupported").scrollIntoView({ behavior: "smooth" }); return; }
+  try {
+    setStatus("Choose your strip…");
+    device = await navigator.bluetooth.requestDevice(showAll ? {
+      acceptAllDevices: true, optionalServices: TARGETS.map(t => t.service),
+    } : {
+      filters: [
+        { namePrefix: "ELK" }, { namePrefix: "LEDBLE" }, { namePrefix: "BLEDOM" }, { namePrefix: "MELK" },
+        { namePrefix: "LEDBlue" }, { namePrefix: "QHM" }, { namePrefix: "Lotus" }, { services: [0xfff0] },
+      ],
+      optionalServices: TARGETS.map(t => t.service),
+    });
+    device.addEventListener("gattserverdisconnected", onDisconnect);
+    await openGatt();
+  } catch (e) {
+    setStatus(e.name === "NotFoundError" ? "No strip chosen. See “Can't find your strip?” below." : "Error: " + e.message);
+    $("help").open = true;
+    log(e.message);
+  }
+}
+async function openGatt() {
+  setStatus("Connecting to <b>" + (device.name || "device") + "</b>…");
+  const server = await device.gatt.connect();
+  for (const t of TARGETS) {
+    try { charac = await (await server.getPrimaryService(t.service)).getCharacteristic(t.char);
+      log("using " + t.service.toString(16) + "/" + t.char.toString(16)); break; } catch {}
+  }
+  if (!charac) { device.gatt.disconnect(); throw new Error("That device isn't an LED controller this app knows. Try another one."); }
+  setStatus("Connected to <b>" + (device.name || "strip") + "</b>");
+  $("connect").textContent = "Disconnect";
+  $("controls").classList.remove("disabled");
+  $("help").open = false;
+}
+function onDisconnect() {
+  charac = null; stopAll();
+  $("controls").classList.add("disabled");
+  $("connect").textContent = "Reconnect";
+  setStatus("Disconnected");
+}
+$("connect").onclick = () => {
+  if (device && device.gatt.connected) { device.gatt.disconnect(); return; }
+  if (device) openGatt().catch(e => setStatus("Error: " + e.message)); else connect();
+};
+$("showAll").onclick = e => { e.preventDefault(); device = null; connect(true); };
+
+// ===== Tabs =====
+$("tabs").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("show", t.dataset.tab === b.dataset.tab));
+  store.set("tab", b.dataset.tab);
+};
+function segment(id, cb) {
+  const el = $(id);
+  el.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    el.querySelectorAll("button").forEach(x => x.classList.toggle("active", x === b)); cb(b); };
+  return () => el.querySelector(".active");
+}
+
+// ===== Power & brightness =====
+function renderPower() { $("power").classList.toggle("on", on); $("preview").style.opacity = on ? 1 : .25; }
+function setPower(v) {
+  on = v; if (!v) stopAll();
+  send(v ? LED.powerOn($("altPower").checked) : LED.powerOff($("altPower").checked)); renderPower();
+}
+$("power").onclick = () => setPower(!on);
+$("altPower").checked = store.get("altPower", false);
+$("altPower").onchange = e => store.set("altPower", e.target.checked);
+function setBri(v, push = true) {
+  $("bri").value = v; $("briVal").textContent = v + "%"; store.set("bri", v);
+  if (push) send(LED.brightness(v), "bri");
+}
+setBri(store.get("bri", 100), false);
+$("bri").oninput = e => setBri(+e.target.value);
+
+// ===== Color tab =====
+function pickColor(c, fromWheel = false) {
+  stopAll(); if (!fromWheel) marker = null;
+  rgb = c; store.set("rgb", c); sendColor(c); drawWheel();
+}
+const wheel = $("wheel"), ctx = wheel.getContext("2d");
+let wheelImg = null, marker = null;
+function hsvToRgb(h, s, v) {
+  const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+  return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
+}
+function drawWheel() {
+  const W = wheel.width, R = W / 2;
+  if (!wheelImg) {
+    wheelImg = ctx.createImageData(W, W);
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+      const dx = x - R, dy = y - R, d = Math.hypot(dx, dy), i = (y * W + x) * 4;
+      if (d > R) continue;
+      const c = hsvToRgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, d / R, 1);
+      wheelImg.data.set([...c, d > R - 1.5 ? Math.round((R - d) / 1.5 * 255) : 255], i);
+    }
+  }
+  ctx.putImageData(wheelImg, 0, 0);
+  if (marker) {
+    ctx.beginPath(); ctx.arc(marker[0], marker[1], 18, 0, Math.PI * 2);
+    ctx.lineWidth = 6; ctx.strokeStyle = "#fff"; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.stroke();
+  }
+}
+function pickAt(ev) {
+  const rect = wheel.getBoundingClientRect(), W = wheel.width, R = W / 2;
+  let dx = (ev.clientX - rect.left) * W / rect.width - R, dy = (ev.clientY - rect.top) * W / rect.height - R;
+  let d = Math.hypot(dx, dy);
+  if (d > R - 1) { dx *= (R - 1) / d; dy *= (R - 1) / d; d = R - 1; }
+  marker = [R + dx, R + dy];
+  pickColor(hsvToRgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, d / R, 1), true);
+}
+wheel.addEventListener("pointerdown", e => { wheel.setPointerCapture(e.pointerId); pickAt(e); });
+wheel.addEventListener("pointermove", e => { if (e.buttons || e.pressure) pickAt(e); });
+for (const c of SWATCHES) {
+  const b = document.createElement("button"); b.style.background = c; b.setAttribute("aria-label", c);
+  b.onclick = () => pickColor(hexToRgb(c)); $("swatches").appendChild(b);
+}
+segment("colorMode", b => {
+  $("rgbPane").style.display = b.dataset.m === "rgb" ? "" : "none";
+  $("whitePane").style.display = b.dataset.m === "white" ? "" : "none";
+});
+// Color temperature approximation (Kelvin → RGB) for an RGB-only strip.
+function kelvin(k) {
+  const t = k / 100;
+  const r = t <= 66 ? 255 : 329.7 * Math.pow(t - 60, -0.1332);
+  const g = t <= 66 ? 99.47 * Math.log(t) - 161.12 : 288.12 * Math.pow(t - 60, -0.0755);
+  const b = t >= 66 ? 255 : t <= 19 ? 0 : 138.52 * Math.log(t - 10) - 305.04;
+  return [r, g, b].map(x => Math.max(0, Math.min(255, Math.round(x))));
+}
+$("cct").oninput = e => { $("cctVal").textContent = e.target.value + "K"; pickColor(kelvin(+e.target.value)); };
+for (const [n, k] of [["Candle", 2700], ["Warm", 3300], ["Neutral", 4500], ["Daylight", 5500], ["Cool", 6500], ["Pure", 0]]) {
+  const b = document.createElement("button"); b.textContent = n;
+  b.onclick = () => { if (k) { $("cct").value = k; $("cctVal").textContent = k + "K"; } pickColor(k ? kelvin(k) : [255, 255, 255]); };
+  $("whites").appendChild(b);
+}
+let favs = store.get("favs", ["#ff2a8a", "#7a00ff", "#00b3ff"]);
+function renderFavs() {
+  const el = $("favs"); el.innerHTML = "";
+  favs.forEach((c, i) => {
+    const b = document.createElement("button"); b.style.background = c; b.title = "Tap to use, hold to delete";
+    b.onclick = () => pickColor(hexToRgb(c));
+    let t; b.onpointerdown = () => t = setTimeout(() => { favs.splice(i, 1); store.set("favs", favs); renderFavs(); }, 650);
+    b.onpointerup = b.onpointerleave = () => clearTimeout(t);
+    el.appendChild(b);
+  });
+  if (favs.length < 15) {
+    const a = document.createElement("button"); a.className = "add"; a.textContent = "+"; a.setAttribute("aria-label", "Save current color");
+    a.onclick = () => { favs.push(rgbToHex(rgb)); store.set("favs", favs); renderFavs(); };
+    el.appendChild(a);
+  }
+}
+renderFavs();
+
+// ===== Modes tab =====
+function setSpeed(v, push = true) {
+  $("spd").value = v; $("spdVal").textContent = v; store.set("spd", v);
+  if (push) send(LED.speed(v), "spd");
+}
+setSpeed(store.get("spd", 50), false);
+$("spd").oninput = e => setSpeed(+e.target.value);
+function runEffect(code, spd) {
+  stopAll(); send(LED.effect(code)); if (spd != null) setSpeed(spd, false); send(LED.speed(+$("spd").value));
+  $("preview").textContent = (EFFECTS.find(e => e[1] === code) || [""])[0];
+  showColor([90, 209, 230]);
+}
+for (const [name, code] of EFFECTS) {
+  const b = document.createElement("button"); b.textContent = name;
+  b.onclick = () => { runEffect(code); b.classList.add("active"); };
+  $("effects").appendChild(b);
+}
+
+// Software color loop used by custom mode and scenes.
+function colorLoop(name, colors, type, speed, label) {
+  stopAll();
+  const cs = colors.map(hexToRgb);
+  const stepMs = 3200 - speed * 30;           // time per color, 200ms–3.2s
+  let start = performance.now(), raf, last = 0;
+  const tick = now => {
+    if (now - last >= 50) {                    // ~20 updates/s max
+      last = now;
+      const pos = (now - start) / stepMs, i = Math.floor(pos) % cs.length, t = pos % 1;
+      let c;
+      if (type === "fade") c = lerp(cs[i], cs[(i + 1) % cs.length], t);
+      else if (type === "jump") c = cs[i];
+      else c = t < 0.35 ? cs[i] : [0, 0, 0];   // strobe
+      sendColor(c);
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  $("preview").textContent = label || "";
+  stopRunner = { name, stop() { cancelAnimationFrame(raf); $("preview").textContent = ""; onStop(name); } };
+}
+function onStop(name) {
+  if (name === "diy") { $("diyRun").textContent = "Start custom mode"; $("diyState").textContent = ""; }
+  if (name === "music") stopMic();
+}
+
+let diy = store.get("diy", ["#ff0000", "#00ff00", "#0000ff"]);
+function renderDiy() {
+  const el = $("diyColors"); el.innerHTML = "";
+  diy.forEach((c, i) => {
+    const d = document.createElement("div"); d.className = "c"; d.style.background = c;
+    const inp = document.createElement("input"); inp.type = "color"; inp.value = c; inp.setAttribute("aria-label", "Change color");
+    inp.oninput = () => { diy[i] = inp.value; d.style.background = inp.value; store.set("diy", diy); };
+    d.appendChild(inp);
+    if (diy.length > 2) {
+      const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.setAttribute("aria-label", "Remove");
+      x.onclick = () => { diy.splice(i, 1); store.set("diy", diy); renderDiy(); }; d.appendChild(x);
+    }
+    el.appendChild(d);
+  });
+  if (diy.length < 8) {
+    const a = document.createElement("button"); a.textContent = "+"; a.style.cssText = "width:40px;height:40px;border-radius:50%;padding:0";
+    a.onclick = () => { diy.push(rgbToHex(rgb)); store.set("diy", diy); renderDiy(); }; el.appendChild(a);
+  }
+}
+renderDiy();
+const diyType = segment("diyType", () => {});
+$("diySpd").oninput = e => $("diySpdVal").textContent = e.target.value;
+$("diyRun").onclick = () => {
+  if (stopRunner && stopRunner.name === "diy") { stopAll(); return; }
+  colorLoop("diy", diy, diyType().dataset.t, +$("diySpd").value, "Custom mode");
+  $("diyRun").textContent = "Stop custom mode"; $("diyState").textContent = "running";
+};
+
+// ===== Music tab =====
+const bars = [];
+for (let i = 0; i < 24; i++) { const b = document.createElement("b"); $("meter").appendChild(b); bars.push(b); }
+const musicMode = segment("musicMode", () => {});
+$("sens").oninput = e => $("sensVal").textContent = e.target.value;
+let mic = null;
+async function startMic() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $("micState").textContent = "microphone not available"; return; }
+  stopAll();
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
+  catch { $("micState").textContent = "microphone blocked"; return; }
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  const an = ac.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = 0.5;
+  ac.createMediaStreamSource(stream).connect(an);
+  const buf = new Uint8Array(an.frequencyBinCount);
+  let avg = 0, hue = 0, raf, last = 0, lastBeat = 0;
+  const tick = now => {
+    an.getByteFrequencyData(buf);
+    const n = buf.length, step = Math.floor(n / 2 / bars.length);
+    bars.forEach((b, i) => { let s = 0; for (let j = 0; j < step; j++) s += buf[i * step + j]; b.style.height = Math.max(2, s / step / 255 * 62) + "px"; });
+    let bass = 0; for (let i = 1; i < 12; i++) bass += buf[i]; bass /= 11 * 255;
+    let all = 0; for (let i = 0; i < n / 2; i++) all += buf[i]; all /= (n / 2) * 255;
+    const sens = +$("sens").value / 100;
+    const level = Math.min(1, (bass * 0.7 + all * 0.6) * (0.6 + sens * 2.4));
+    const beat = level > avg * 1.25 + 0.06 && now - lastBeat > 140;
+    avg = avg * 0.92 + level * 0.08;
+    if (beat) lastBeat = now;
+    if (now - last >= 45) {
+      last = now;
+      const m = musicMode().dataset.m;
+      let c;
+      if (m === "pulse") c = rgb.map(x => Math.round(x * (0.08 + 0.92 * level)));
+      else if (m === "rainbow") { hue = (hue + (beat ? 47 : 1.5)) % 360; c = hsvToRgb(hue, 1, 0.15 + 0.85 * level); }
+      else { if (beat) hue = (hue + 67 + Math.random() * 120) % 360; c = now - lastBeat < 90 ? hsvToRgb(hue, 1, 1) : [0, 0, 0]; }
+      sendColor(c);
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  mic = { stream, ac, raf: () => raf };
+  stopRunner = { name: "music", stop() { cancelAnimationFrame(raf); onStop("music"); } };
+  $("micBtn").textContent = "Stop listening"; $("micState").textContent = "listening";
+}
+function stopMic() {
+  if (mic) { mic.stream.getTracks().forEach(t => t.stop()); mic.ac.close(); mic = null; }
+  bars.forEach(b => b.style.height = "2px");
+  $("micBtn").textContent = "Start listening"; $("micState").textContent = "";
+  showColor(rgb);
+}
+$("micBtn").onclick = () => (stopRunner && stopRunner.name === "music") ? stopAll() : startMic();
+
+// ===== Scenes tab =====
+for (const s of SCENES) {
+  const b = document.createElement("button"); b.className = "scene";
+  const sw = s.loop ? `linear-gradient(90deg,${s.loop.join(",")})`
+    : s.effect ? "linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" : s.color;
+  b.innerHTML = `<i style="background:${sw}"></i><span>${s.name}</span>`;
+  b.onclick = () => {
+    if (!on) setPower(true);
+    if (s.effect) runEffect(s.effect, s.spd);
+    else if (s.loop) { setBri(100); colorLoop("scene", s.loop, s.type, s.spd, s.name); }
+    else { pickColor(hexToRgb(s.color)); setBri(s.bri); }
+    b.classList.add("active");
+  };
+  $("scenes").appendChild(b);
+}
+
+// ===== Timer tab =====
+let sleepAt = null;
+for (const m of [0, 5, 15, 30, 60, 120]) {
+  const b = document.createElement("button"); b.textContent = m ? (m < 60 ? m + " min" : m / 60 + " h") : "Off";
+  b.onclick = () => {
+    sleepAt = m ? Date.now() + m * 60000 : null;
+    document.querySelectorAll("#sleepBtns button").forEach(x => x.classList.toggle("active", x === b && m));
+    tickTimers();
+  };
+  $("sleepBtns").appendChild(b);
+}
+for (const id of ["onTime", "offTime", "onEn", "offEn"]) {
+  const el = $(id), k = "t:" + id, v = store.get(k, null);
+  if (v != null) el[el.type === "checkbox" ? "checked" : "value"] = v;
+  el.onchange = () => store.set(k, el.type === "checkbox" ? el.checked : el.value);
+}
+let lastMinute = "";
+function tickTimers() {
+  if (sleepAt) {
+    const left = sleepAt - Date.now();
+    if (left <= 0) { sleepAt = null; setPower(false); $("sleepLeft").textContent = "";
+      document.querySelectorAll("#sleepBtns button").forEach(x => x.classList.remove("active")); }
+    else $("sleepLeft").textContent = "off in " + Math.floor(left / 60000) + ":" + String(Math.floor(left / 1000) % 60).padStart(2, "0");
+  } else $("sleepLeft").textContent = "";
+  const d = new Date(), hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  if (hm !== lastMinute) {
+    lastMinute = hm;
+    if ($("onEn").checked && $("onTime").value === hm) setPower(true);
+    if ($("offEn").checked && $("offTime").value === hm) setPower(false);
+  }
+}
+setInterval(tickTimers, 1000);
+// Keep the screen awake while timers or animations run, where supported.
+let wake = null;
+document.addEventListener("click", async () => { try { if (!wake && navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch {} }, { once: true });
+
+// ===== Init =====
+showColor(rgb); drawWheel(); renderPower();
+const t = store.get("tab", "color"); document.querySelector(`#tabs button[data-tab="${t}"]`)?.click();
+if (!navigator.bluetooth) $("unsupported").style.display = "block";
+</script>
+</body>
+</html>
