@@ -84,6 +84,7 @@
   .switch input:checked + span { background: var(--accent); }
   .switch input:checked + span::before { transform: translateX(20px); }
   .pill { font-size: 12px; color: var(--accent); }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -168,7 +169,20 @@
     <!-- MUSIC -->
     <section class="tab" data-tab="music">
       <div class="card">
-        <h2>Music <span class="r pill" id="micState"></span></h2>
+        <h2>Music <span class="r pill" id="stripMicState"></span></h2>
+        <div class="seg" id="micSource">
+          <button class="active" data-s="strip">Strip's mic</button><button data-s="phone">This device's mic</button>
+        </div>
+        <div id="stripMicPane" style="margin-top:14px;display:grid;gap:12px">
+          <div class="grid2" id="micStyles"></div>
+          <label class="slider"><span>Sensitivity <b id="stripSensVal">50</b></span>
+            <input type="range" id="stripSens" min="0" max="100" value="50"></label>
+          <button class="primary" id="stripMicBtn" style="width:100%">Start music mode</button>
+          <p class="note">Uses the microphone built into the strip's controller box, so the lights react to sound in the room even with this app closed.</p>
+        </div>
+      </div>
+      <div class="card" id="phoneMicPane" hidden>
+        <h2>This device's mic <span class="r pill" id="micState"></span></h2>
         <div id="meter"></div>
         <div class="seg" id="musicMode" style="margin-top:14px">
           <button class="active" data-m="pulse">Pulse</button><button data-m="rainbow">Rainbow</button><button data-m="flash">Flash</button>
@@ -176,7 +190,7 @@
         <label class="slider" style="margin-top:12px"><span>Sensitivity <b id="sensVal">60</b></span>
           <input type="range" id="sens" min="1" max="100" value="60"></label>
         <button class="primary" id="micBtn" style="width:100%;margin-top:10px">Start listening</button>
-        <p class="note" style="margin-top:8px">Uses your phone's microphone. Pulse uses the color you picked on the Color tab.</p>
+        <p class="note" style="margin-top:8px">Uses the microphone on this phone or laptop. Pulse uses the color you picked on the Color tab.</p>
       </div>
     </section>
 
@@ -228,7 +242,14 @@ const LED = {
   brightness: v => [0x7e,0x00,0x01,v,0x00,0x00,0x00,0x00,0xef],
   effect: code => [0x7e,0x00,0x03,code,0x03,0x00,0x00,0x00,0xef],
   speed: v => [0x7e,0x00,0x02,v,0x00,0x00,0x00,0x00,0xef],
+  // The controller's own microphone (built into the box on the strip)
+  micOn:  () => [0x7e,0x04,0x07,0x01,0xff,0xff,0xff,0x00,0xef],
+  micOff: () => [0x7e,0x04,0x07,0x00,0xff,0xff,0xff,0x00,0xef],
+  micEffect: code => [0x7e,0x05,0x03,code,0x04,0xff,0xff,0x00,0xef],   // 0x80-0x87
+  micSens: v => [0x7e,0x04,0x06,v,0xff,0xff,0xff,0x00,0xef],          // 0-100
 };
+const MIC_STYLES = [["Energetic",0x80],["Rhythm",0x81],["Spectrum",0x82],["Rolling",0x83],
+  ["Style 5",0x84],["Style 6",0x85],["Style 7",0x86],["Style 8",0x87]];
 const EFFECTS = [
   ["Jump RGB",0x87],["Jump 7 colors",0x88],["Fade RGB",0x89],["Fade 7 colors",0x8a],
   ["Breathe red",0x8b],["Breathe green",0x8c],["Breathe blue",0x8d],["Breathe yellow",0x8e],
@@ -240,6 +261,7 @@ const EFFECTS = [
 const SWATCHES = ["#ff0000","#ff7a00","#ffd400","#00ff00","#00ffd5","#0050ff","#a000ff","#ff2a8a"];
 // Scenes: either a static color + brightness, a built-in effect, or a software color loop.
 const SCENES = [
+  { name: "Blue Red Purple", loop: ["#0028ff","#7a00ff","#ff0033","#7a00ff"], type: "fade", spd: 35 },
   { name: "Reading",  color: "#fff1d6", bri: 100 },
   { name: "Movie",    color: "#1a2cff", bri: 25 },
   { name: "Relax",    color: "#ff8a3d", bri: 45 },
@@ -506,6 +528,7 @@ function colorLoop(name, colors, type, speed, label) {
 function onStop(name) {
   if (name === "diy") { $("diyRun").textContent = "Start custom mode"; $("diyState").textContent = ""; }
   if (name === "music") stopMic();
+  if (name === "stripMic") { $("stripMicBtn").textContent = "Start music mode"; $("stripMicState").textContent = ""; $("preview").textContent = ""; }
 }
 
 let diy = store.get("diy", ["#ff0000", "#00ff00", "#0000ff"]);
@@ -587,6 +610,36 @@ function stopMic() {
   showColor(rgb);
 }
 $("micBtn").onclick = () => (stopRunner && stopRunner.name === "music") ? stopAll() : startMic();
+
+// Strip's own microphone
+let stripMicOn = false, micStyle = store.get("micStyle", 0x80);
+for (const [name, code] of MIC_STYLES) {
+  const b = document.createElement("button"); b.textContent = name; b.dataset.code = code;
+  b.classList.toggle("active", code === micStyle);
+  b.onclick = () => {
+    micStyle = code; store.set("micStyle", code);
+    document.querySelectorAll("#micStyles button").forEach(x => x.classList.toggle("active", x === b));
+    if (stripMicOn) send(LED.micEffect(code));
+  };
+  $("micStyles").appendChild(b);
+}
+$("stripSens").value = store.get("stripSens", 50); $("stripSensVal").textContent = $("stripSens").value;
+$("stripSens").oninput = e => { const v = +e.target.value; $("stripSensVal").textContent = v; store.set("stripSens", v);
+  if (stripMicOn) send(LED.micSens(v), "micSens"); };
+function startStripMic() {
+  stopAll();
+  send(LED.micOn()); send(LED.micEffect(micStyle)); send(LED.micSens(+$("stripSens").value));
+  stripMicOn = true;
+  $("preview").textContent = "Music mode";
+  stopRunner = { name: "stripMic", stop() { stripMicOn = false; send(LED.micOff()); send(LED.color(...rgb)); onStop("stripMic"); } };
+  $("stripMicBtn").textContent = "Stop music mode"; $("stripMicState").textContent = "listening";
+}
+$("stripMicBtn").onclick = () => (stopRunner && stopRunner.name === "stripMic") ? stopAll() : startStripMic();
+segment("micSource", b => {
+  const strip = b.dataset.s === "strip";
+  $("stripMicPane").hidden = !strip; $("phoneMicPane").hidden = strip;
+  if (stopRunner && (stopRunner.name === "stripMic" || stopRunner.name === "music")) stopAll();
+});
 
 // ===== Scenes tab =====
 for (const s of SCENES) {
